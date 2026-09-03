@@ -35,6 +35,8 @@ function toDocumentItem(id: string, data: DocumentData): DocumentItem {
     mimeType: data.mimeType,
     storagePath: data.storagePath,
     uploadedAt: uploadedAt ? uploadedAt.toMillis() : Date.now(),
+    sharedToken: data.sharedToken ?? undefined,
+    sharedAllowDownload: data.sharedAllowDownload ?? undefined,
   };
 }
 
@@ -123,4 +125,130 @@ export async function downloadDocument(target: DocumentItem): Promise<void> {
   a.click();
   a.remove();
   URL.revokeObjectURL(objectUrl);
+}
+
+/** Gera um token UUID v4 simples sem dependência externa. */
+function generateToken(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/**
+ * Gera (ou reutiliza) um sharedToken no documento do Firestore.
+ * Retorna o token para que o chamador possa montar o link.
+ */
+export async function shareDocument(
+  uid: string,
+  target: DocumentItem,
+  allowDownload: boolean
+): Promise<string> {
+  const token = target.sharedToken ?? generateToken();
+  await updateDoc(userDocRef(uid, target.id), {
+    sharedToken: token,
+    sharedAllowDownload: allowDownload,
+  });
+  return token;
+}
+
+/** Altera só a permissão de download sem revogar/trocar o link. */
+export async function updateSharePermission(
+  uid: string,
+  target: DocumentItem,
+  allowDownload: boolean
+): Promise<void> {
+  await updateDoc(userDocRef(uid, target.id), { sharedAllowDownload: allowDownload });
+}
+
+/** Remove o sharedToken, tornando o link anterior inválido imediatamente. */
+export async function unshareDocument(uid: string, target: DocumentItem): Promise<void> {
+  const { deleteField } = await import('firebase/firestore');
+  await updateDoc(userDocRef(uid, target.id), { sharedToken: deleteField() });
+}
+
+/**
+ * Busca um documento pelo sharedToken (leitura pública — sem autenticação).
+ * Usado pela página de visualização pública (/share/:token).
+ */
+export async function getDocumentByToken(token: string): Promise<DocumentItem | null> {
+  const { getDocs, where } = await import('firebase/firestore');
+  // A query varre todos os grupos de coleção "documents" — requer índice de grupo
+  // de coleção no Firestore para `sharedToken` (criado automaticamente na 1ª execução).
+  const { collectionGroup } = await import('firebase/firestore');
+  const q = query(collectionGroup(db, 'documents'), where('sharedToken', '==', token));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return toDocumentItem(d.id, d.data());
+}
+
+export interface UploadItem {
+  file: File;
+  category: string;
+}
+
+export interface UploadProgress {
+  total: number;
+  done: number;
+  current: string | null; // nome do arquivo sendo enviado agora
+  errors: Array<{ name: string; message: string }>;
+}
+
+/**
+ * Faz upload de vários arquivos em sequência, reportando progresso via callback.
+ * Continua mesmo se um arquivo falhar — erros são acumulados no progress.
+ */
+export async function uploadManyDocuments(
+  uid: string,
+  items: UploadItem[],
+  onProgress: (p: UploadProgress) => void
+): Promise<UploadProgress> {
+  const progress: UploadProgress = {
+    total: items.length,
+    done: 0,
+    current: null,
+    errors: [],
+  };
+
+  // Cache de nomes por categoria para evitar colisões entre arquivos do mesmo lote
+  const nameCache = new Map<string, Set<string>>();
+
+  for (const item of items) {
+    progress.current = item.file.name;
+    onProgress({ ...progress });
+
+    try {
+      if (!nameCache.has(item.category)) {
+        nameCache.set(item.category, new Set());
+      }
+      const usedNames = nameCache.get(item.category)!;
+      const name = getAvailableName([...usedNames], item.file.name);
+      usedNames.add(name);
+
+      const contentType = item.file.type || mimeTypeFor(name);
+      const storagePath = `users/${uid}/${item.category}/${name}`;
+      await uploadBytes(ref(storage, storagePath), item.file, { contentType });
+      await addDoc(userDocsCollection(uid), {
+        name,
+        category: item.category,
+        size: item.file.size,
+        mimeType: contentType,
+        storagePath,
+        uploadedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      progress.errors.push({
+        name: item.file.name,
+        message: err instanceof Error ? err.message : 'Erro desconhecido',
+      });
+    }
+
+    progress.done += 1;
+    onProgress({ ...progress });
+  }
+
+  progress.current = null;
+  onProgress({ ...progress });
+  return progress;
 }

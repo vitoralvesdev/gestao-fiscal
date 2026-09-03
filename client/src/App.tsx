@@ -7,6 +7,8 @@ import { UploadModal } from './components/UploadModal';
 import { EditModal } from './components/EditModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { ViewerModal } from './components/ViewerModal';
+import { ShareModal } from './components/ShareModal';
+import { SharedViewer } from './components/SharedViewer';
 import { SignIn } from './components/SignIn';
 import { signInWithGoogle, signOutUser, subscribeToAuth, type User } from './lib/auth';
 import {
@@ -20,7 +22,20 @@ import type { CategoryCount, DocumentItem } from './types';
 
 type AuthStatus = 'loading' | 'signed-out' | 'signed-in';
 
+/** Extrai o token de compartilhamento da URL, se estiver em /share/:token */
+function getShareToken(): string | null {
+  const match = window.location.pathname.match(/^\/share\/([^/]+)$/);
+  return match ? match[1] : null;
+}
+
+/** Ponto de entrada — roteia entre app autenticado e viewer público */
 export default function App() {
+  const shareToken = getShareToken();
+  if (shareToken) return <SharedViewer token={shareToken} />;
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
 
@@ -34,6 +49,7 @@ export default function App() {
   const [viewerDoc, setViewerDoc] = useState<DocumentItem | null>(null);
   const [editDoc, setEditDoc] = useState<DocumentItem | null>(null);
   const [deleteDoc, setDeleteDoc] = useState<DocumentItem | null>(null);
+  const [shareDoc, setShareDoc] = useState<DocumentItem | null>(null);
 
   useEffect(() => {
     return subscribeToAuth((u) => {
@@ -83,6 +99,13 @@ export default function App() {
     return documents
       .filter((d) => d.category === category && d.id !== excludeId)
       .map((d) => d.name);
+  }
+
+  /** Atualiza um documento na lista local sem precisar esperar o Firestore re-emitir. */
+  function updateDocInList(updated: DocumentItem) {
+    setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+    // Reflete no modal de share se ainda estiver aberto
+    setShareDoc((prev) => (prev?.id === updated.id ? updated : prev));
   }
 
   if (authStatus === 'loading') return null;
@@ -157,6 +180,7 @@ export default function App() {
                   onOpen={setViewerDoc}
                   onEdit={setEditDoc}
                   onDelete={setDeleteDoc}
+                  onShare={setShareDoc}
                   onDownload={(d) => downloadDocument(d).catch((err) => setError(err.message))}
                 />
               ))}
@@ -202,6 +226,15 @@ export default function App() {
       )}
 
       {viewerDoc && <ViewerModal doc={viewerDoc} onClose={() => setViewerDoc(null)} />}
+
+      {shareDoc && user && (
+        <ShareModal
+          doc={shareDoc}
+          uid={user.uid}
+          onClose={() => setShareDoc(null)}
+          onUpdate={updateDocInList}
+        />
+      )}
     </div>
   );
 }

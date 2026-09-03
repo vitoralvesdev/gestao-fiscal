@@ -1,4 +1,4 @@
-import { IconDownload, IconPencil, IconTrash } from './icons';
+import { IconDownload, IconPencil, IconTrash, IconShare } from './icons';
 import type { DocumentItem } from '../types';
 import { fileKind, formatDate, formatSize } from '../lib/format';
 import { FileKindIcon } from './icons';
@@ -9,9 +9,10 @@ interface Props {
   onEdit: (doc: DocumentItem) => void;
   onDelete: (doc: DocumentItem) => void;
   onDownload: (doc: DocumentItem) => void;
+  onShare: (doc: DocumentItem) => void;
 }
 
-export function DocumentRow({ doc, onOpen, onEdit, onDelete, onDownload }: Props) {
+export function DocumentRow({ doc, onOpen, onEdit, onDelete, onDownload, onShare }: Props) {
   const kind = fileKind(doc.name);
   return (
     <div className="doc-row">
@@ -29,6 +30,13 @@ export function DocumentRow({ doc, onOpen, onEdit, onDelete, onDownload }: Props
       <div className="doc-actions">
         <button className="icon-btn" title="Baixar" onClick={() => onDownload(doc)}>
           <IconDownload size={16} />
+        </button>
+        <button
+          className={`icon-btn${doc.sharedToken ? ' active-share' : ''}`}
+          title={doc.sharedToken ? 'Link ativo — gerenciar compartilhamento' : 'Compartilhar'}
+          onClick={() => onShare(doc)}
+        >
+          <IconShare size={16} />
         </button>
         <button className="icon-btn" title="Editar" onClick={() => onEdit(doc)}>
           <IconPencil size={16} />

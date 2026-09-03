@@ -3,24 +3,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Documento-pai do usuário (users/{uid}).
-    // O Firestore requer permissão no documento mesmo quando a operação real
-    // acontece numa subcoleção — sem isso, o SDK lança "Missing or insufficient permissions".
+    // ── Documento-pai do usuário ─────────────────────────────────────
+    // O Firestore exige permissão no documento-pai mesmo quando a operação
+    // real é numa subcoleção. Sem isso o SDK lança "Missing or insufficient permissions".
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Documentos fiscais do usuário.
+    // ── Documentos fiscais ───────────────────────────────────────────
     match /users/{uid}/documents/{docId} {
 
-      // Dono tem acesso total.
+      // Dono autenticado tem acesso total (leitura, escrita, exclusão).
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
-      // --- Compartilhamento futuro (link público) ---
-      // Quando o dono gerar um link público, o campo `sharedToken` (string UUID)
-      // será gravado no documento. Quem conhecer o token exato poderá ler os
-      // metadados do documento (nome, categoria, storagePath) mesmo sem conta.
-      // Escrever/excluir continua restrito exclusivamente ao dono (regra acima).
+      // ── Compartilhamento público (link por token) ────────────────
+      // Qualquer pessoa (incluindo não autenticada) pode LER um documento
+      // cujo campo `sharedToken` esteja preenchido.
+      // Isso permite que a página /share/:token funcione sem login.
+      // Escrever/excluir continua restrito ao dono pela regra acima.
+      allow read: if resource.data.sharedToken is string
+                  && resource.data.sharedToken.size() > 0;
+    }
+
+    // ── Acesso por collectionGroup para a query de busca por token ───
+    // getDocumentByToken() usa collectionGroup('documents') + where('sharedToken','==',token).
+    // Esta regra permite essa query pública (somente leitura).
+    match /{path=**}/documents/{docId} {
       allow read: if resource.data.sharedToken is string
                   && resource.data.sharedToken.size() > 0;
     }
