@@ -1,13 +1,17 @@
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc as deleteFirestoreDoc,
+  deleteField,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
+  where,
   type DocumentData,
   type FirestoreError,
   type Timestamp,
@@ -169,7 +173,6 @@ export async function updateSharePermission(
 
 /** Remove o sharedToken e o URL salvo, tornando o link anterior inválido imediatamente. */
 export async function unshareDocument(uid: string, target: DocumentItem): Promise<void> {
-  const { deleteField } = await import('firebase/firestore');
   await updateDoc(userDocRef(uid, target.id), {
     sharedToken: deleteField(),
     sharedAllowDownload: deleteField(),
@@ -182,10 +185,8 @@ export async function unshareDocument(uid: string, target: DocumentItem): Promis
  * Usado pela página de visualização pública (/share/:token).
  */
 export async function getDocumentByToken(token: string): Promise<DocumentItem | null> {
-  const { getDocs, where } = await import('firebase/firestore');
   // A query varre todos os grupos de coleção "documents" — requer índice de grupo
   // de coleção no Firestore para `sharedToken` (criado automaticamente na 1ª execução).
-  const { collectionGroup } = await import('firebase/firestore');
   const q = query(collectionGroup(db, 'documents'), where('sharedToken', '==', token));
   const snap = await getDocs(q);
   if (snap.empty) return null;

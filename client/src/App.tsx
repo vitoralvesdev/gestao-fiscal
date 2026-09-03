@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { IconFolder, IconGrid, IconLogout, IconPlus, IconSearch } from './components/icons';
+import { IconGrid, IconPlus, IconSearch } from './components/icons';
+import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
 import { CategoryChips } from './components/CategoryChips';
-import { DocumentRow } from './components/DocumentRow';
+import { DocumentsView } from './components/DocumentsView';
 import { UploadModal } from './components/UploadModal';
 import { EditModal } from './components/EditModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
@@ -128,157 +129,148 @@ function AuthenticatedApp() {
     setShareDoc((prev) => (prev?.id === updated.id ? updated : prev));
   }
 
+  // Documentos com link ativo — alimenta o painel da TopBar
+  const sharedDocs = useMemo(
+    () => documents.filter((d) => !!d.sharedToken),
+    [documents]
+  );
+
   if (authStatus === 'loading') return null;
-  if (authStatus === 'signed-out') return <SignIn onSignIn={signInWithGoogle} />;
+  if (!user) return <SignIn onSignIn={signInWithGoogle} />;
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <IconFolder size={20} />
-          <span>Gestão Fiscal</span>
-        </div>
-        <Sidebar
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-          totalCount={totalCount}
-        />
-        <div className="sidebar-footer">
-          <button className="btn btn-secondary btn-block" onClick={() => signOutUser()}>
-            <IconLogout size={16} /> Sair ({user?.displayName ?? user?.email})
-          </button>
-        </div>
-      </aside>
+      <TopBar
+        user={user}
+        sharedDocs={sharedDocs}
+        onSignOut={signOutUser}
+        onUpdateDoc={updateDocInList}
+      />
 
-      <div className="main">
-        <header className="header">
-          <div className="header-row">
-            <div className="mobile-brand">
-              <IconGrid size={18} />
-              <span>Gestão Fiscal</span>
-            </div>
-            <h1 className="header-title">{selectedCategory ?? 'Todos os arquivos'}</h1>
-            <button className="btn btn-primary btn-ml-auto" onClick={() => setUploadOpen(true)}>
-              <IconPlus size={16} /> Novo arquivo
-            </button>
-          </div>
-
-          <div className="search-row">
-            <div className="search-box">
-              <IconSearch size={16} />
-              <input
-                className="search-input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={searchField === 'name' ? 'Buscar por nome…' : 'Buscar por categoria…'}
-              />
-            </div>
-            <div className="search-field-toggle">
-              <button
-                className={`search-field-btn${searchField === 'name' ? ' active' : ''}`}
-                onClick={() => setSearchField('name')}
-              >
-                Nome
-              </button>
-              <button
-                className={`search-field-btn${searchField === 'category' ? ' active' : ''}`}
-                onClick={() => setSearchField('category')}
-              >
-                Categoria
-              </button>
-            </div>
-          </div>
-
-          <CategoryChips
+      <div className="app-body">
+        <aside className="sidebar">
+          <Sidebar
             categories={categories}
             selected={selectedCategory}
             onSelect={setSelectedCategory}
             totalCount={totalCount}
           />
-        </header>
+        </aside>
 
-        <main className="content">
-          {error && <p className="error-banner">{error}</p>}
-          {docsLoading ? (
-            <p className="loading-text">Carregando…</p>
-          ) : filteredDocuments.length === 0 ? (
-            <div className="empty-state">
-              {search || selectedCategory ? (
-                <>
-                  <strong>Nenhum resultado encontrado</strong>
-                  <p>Tente ajustar os filtros ou limpar a busca.</p>
-                </>
-              ) : (
-                <>
-                  <strong>Nenhum arquivo por aqui ainda</strong>
-                  <p>Clique em "Novo arquivo" para começar a organizar seus documentos.</p>
-                </>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="doc-list">
-                {visibleDocuments.map((doc) => (
-                  <DocumentRow
-                    key={doc.id}
-                    doc={doc}
-                    onOpen={setViewerDoc}
-                    onEdit={setEditDoc}
-                    onDelete={setDeleteDoc}
-                    onShare={setShareDoc}
-                    onDownload={(d) => downloadDocument(d).catch((err) => setError(err.message))}
-                  />
-                ))}
+        <div className="main">
+          <header className="header">
+            <div className="header-row">
+              <div className="mobile-brand">
+                <IconGrid size={18} />
+                <span>Gestão Fiscal</span>
               </div>
+              <h1 className="header-title">{selectedCategory ?? 'Todos os arquivos'}</h1>
+              <button className="btn btn-primary btn-ml-auto" onClick={() => setUploadOpen(true)}>
+                <IconPlus size={16} /> Novo arquivo
+              </button>
+            </div>
 
-              {totalPages > 1 && (
-                <div className="pagination">
-                  <button
-                    className="btn btn-secondary pagination-btn"
-                    onClick={() => setPage(1)}
-                    disabled={page === 1}
-                    aria-label="Primeira página"
-                  >
-                    «
-                  </button>
-                  <button
-                    className="btn btn-secondary pagination-btn"
-                    onClick={() => setPage((p) => p - 1)}
-                    disabled={page === 1}
-                    aria-label="Página anterior"
-                  >
-                    ‹
-                  </button>
+            <div className="search-row">
+              <div className="search-box">
+                <IconSearch size={16} />
+                <input
+                  className="search-input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={searchField === 'name' ? 'Buscar por nome…' : 'Buscar por categoria…'}
+                />
+              </div>
+              <div className="search-field-toggle">
+                <button
+                  className={`search-field-btn${searchField === 'name' ? ' active' : ''}`}
+                  onClick={() => setSearchField('name')}
+                >
+                  Nome
+                </button>
+                <button
+                  className={`search-field-btn${searchField === 'category' ? ' active' : ''}`}
+                  onClick={() => setSearchField('category')}
+                >
+                  Categoria
+                </button>
+              </div>
+            </div>
 
-                  <span className="pagination-info">
-                    {page} / {totalPages}
-                    <span className="pagination-total">
-                      ({filteredDocuments.length} arquivo{filteredDocuments.length !== 1 ? 's' : ''})
+            <CategoryChips
+              categories={categories}
+              selected={selectedCategory}
+              onSelect={setSelectedCategory}
+              totalCount={totalCount}
+            />
+          </header>
+
+          <main className="content">
+            {error && <p className="error-banner">{error}</p>}
+            {docsLoading ? (
+              <p className="loading-text">Carregando…</p>
+            ) : filteredDocuments.length === 0 ? (
+              <div className="empty-state">
+                {search || selectedCategory ? (
+                  <>
+                    <strong>Nenhum resultado encontrado</strong>
+                    <p>Tente ajustar os filtros ou limpar a busca.</p>
+                  </>
+                ) : (
+                  <>
+                    <strong>Nenhum arquivo por aqui ainda</strong>
+                    <p>Clique em "Novo arquivo" para começar a organizar seus documentos.</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <DocumentsView
+                  docs={visibleDocuments}
+                  onOpen={setViewerDoc}
+                  onEdit={setEditDoc}
+                  onDelete={setDeleteDoc}
+                  onShare={setShareDoc}
+                  onDownload={(d) => downloadDocument(d).catch((err) => setError(err.message))}
+                />
+
+                {totalPages > 1 && (
+                  <div className="pagination">
+                    <button
+                      className="btn btn-secondary pagination-btn"
+                      onClick={() => setPage(1)}
+                      disabled={page === 1}
+                      aria-label="Primeira página"
+                    >«</button>
+                    <button
+                      className="btn btn-secondary pagination-btn"
+                      onClick={() => setPage((p) => p - 1)}
+                      disabled={page === 1}
+                      aria-label="Página anterior"
+                    >‹</button>
+                    <span className="pagination-info">
+                      {page} / {totalPages}
+                      <span className="pagination-total">
+                        ({filteredDocuments.length} arquivo{filteredDocuments.length !== 1 ? 's' : ''})
+                      </span>
                     </span>
-                  </span>
-
-                  <button
-                    className="btn btn-secondary pagination-btn"
-                    onClick={() => setPage((p) => p + 1)}
-                    disabled={page === totalPages}
-                    aria-label="Próxima página"
-                  >
-                    ›
-                  </button>
-                  <button
-                    className="btn btn-secondary pagination-btn"
-                    onClick={() => setPage(totalPages)}
-                    disabled={page === totalPages}
-                    aria-label="Última página"
-                  >
-                    »
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </main>
+                    <button
+                      className="btn btn-secondary pagination-btn"
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={page === totalPages}
+                      aria-label="Próxima página"
+                    >›</button>
+                    <button
+                      className="btn btn-secondary pagination-btn"
+                      onClick={() => setPage(totalPages)}
+                      disabled={page === totalPages}
+                      aria-label="Última página"
+                    >»</button>
+                  </div>
+                )}
+              </>
+            )}
+          </main>
+        </div>
       </div>
 
       {uploadOpen && user && (
