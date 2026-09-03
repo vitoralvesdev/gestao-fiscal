@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Modal } from './Modal';
 import { IconUploadCloud } from './icons';
 import { suggestCategory } from '../lib/category';
-import { ALLOWED_EXTENSIONS } from '../lib/fsAccess';
+import { ALLOWED_EXTENSIONS } from '../lib/format';
 
 interface Props {
   existingCategories: string[];

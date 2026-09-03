@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Arquivos do usuário — acesso total apenas pelo próprio dono.
+    match /users/{uid}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // --- Compartilhamento futuro (link público) ---
+      // O Storage não tem como consultar o Firestore diretamente nas rules,
+      // portanto a verificação do sharedToken é feita no front-end:
+      //   1. Front busca o metadado no Firestore com o token (permitido pela rule
+      //      do Firestore acima) e obtém o `storagePath`.
+      //   2. Usa getDownloadURL() para gerar um signed URL temporário
+      //      autenticado pelo próprio Firebase SDK — sem precisar abrir o
+      //      Storage para leitura pública.
+      //
+      // Se no futuro você quiser permitir download direto sem signed URL
+      // (ex: <img src="...">), descomente a linha abaixo e adicione uma
+      // coleção separada `publicTokens/{token}` no Firestore para validar:
+      //
+      // allow read: if firestore.get(
+      //   /databases/(default)/documents/publicTokens/$(request.resource.name)
+      // ).data.active == true;
+    }
+
+  }
+}

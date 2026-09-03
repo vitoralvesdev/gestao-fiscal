@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { IconFolder, IconGrid, IconPlus, IconSearch } from './components/icons';
+import { IconFolder, IconGrid, IconLogout, IconPlus, IconSearch } from './components/icons';
 import { Sidebar } from './components/Sidebar';
 import { CategoryChips } from './components/CategoryChips';
 import { DocumentRow } from './components/DocumentRow';
@@ -7,33 +7,27 @@ import { UploadModal } from './components/UploadModal';
 import { EditModal } from './components/EditModal';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { ViewerModal } from './components/ViewerModal';
-import { FolderSetup } from './components/FolderSetup';
+import { SignIn } from './components/SignIn';
+import { signInWithGoogle, signOutUser, subscribeToAuth, type User } from './lib/auth';
 import {
-  deleteFile,
-  ensurePermission,
-  getStoredRootHandle,
-  isSupported,
-  listCategories,
-  listDocuments,
-  pickRootDirectory,
-  readFile,
-  renameOrMoveFile,
-  uploadFile,
-} from './lib/fsAccess';
+  deleteDocument,
+  downloadDocument,
+  subscribeToDocuments,
+  updateDocument,
+  uploadDocument,
+} from './lib/documents';
 import type { CategoryCount, DocumentItem } from './types';
 
-type RootStatus = 'loading' | 'pick' | 'reconnect' | 'unsupported' | 'ready';
+type AuthStatus = 'loading' | 'signed-out' | 'signed-in';
 
 export default function App() {
-  const [rootStatus, setRootStatus] = useState<RootStatus>('loading');
-  const [root, setRoot] = useState<FileSystemDirectoryHandle | null>(null);
-  const [pendingHandle, setPendingHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
+  const [user, setUser] = useState<User | null>(null);
 
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [categories, setCategories] = useState<CategoryCount[]>([]);
+  const [docsLoading, setDocsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -42,91 +36,57 @@ export default function App() {
   const [deleteDoc, setDeleteDoc] = useState<DocumentItem | null>(null);
 
   useEffect(() => {
-    if (!isSupported()) {
-      setRootStatus('unsupported');
-      return;
-    }
-    (async () => {
-      const handle = await getStoredRootHandle();
-      if (!handle) {
-        setRootStatus('pick');
-        return;
-      }
-      const granted = (await handle.queryPermission({ mode: 'readwrite' })) === 'granted';
-      if (granted) {
-        setRoot(handle);
-        setRootStatus('ready');
-      } else {
-        setPendingHandle(handle);
-        setRootStatus('reconnect');
-      }
-    })();
+    return subscribeToAuth((u) => {
+      setUser(u);
+      setAuthStatus(u ? 'signed-in' : 'signed-out');
+    });
   }, []);
 
-  async function refresh(activeRoot: FileSystemDirectoryHandle) {
-    setLoading(true);
-    setError(null);
-    try {
-      const [docs, cats] = await Promise.all([
-        listDocuments(activeRoot, selectedCategory ?? undefined),
-        listCategories(activeRoot),
-      ]);
-      const filtered = search
-        ? docs.filter((d) => d.name.toLowerCase().includes(search.toLowerCase()))
-        : docs;
-      setDocuments(filtered);
-      setCategories(cats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao ler a pasta');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    if (!root) return;
-    const timeout = setTimeout(() => refresh(root), search ? 250 : 0);
-    return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, selectedCategory, search]);
+    if (!user) {
+      setDocuments([]);
+      return;
+    }
+    setDocsLoading(true);
+    setError(null);
+    return subscribeToDocuments(
+      user.uid,
+      (docs) => {
+        setDocuments(docs);
+        setDocsLoading(false);
+      },
+      (err) => {
+        setError(err.message);
+        setDocsLoading(false);
+      }
+    );
+  }, [user]);
 
-  const totalCount = useMemo(() => categories.reduce((sum, c) => sum + c.count, 0), [categories]);
+  const categories = useMemo<CategoryCount[]>(() => {
+    const counts = new Map<string, number>();
+    for (const doc of documents) counts.set(doc.category, (counts.get(doc.category) || 0) + 1);
+    return [...counts.entries()]
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => a.category.localeCompare(b.category, 'pt-BR'));
+  }, [documents]);
+
+  const totalCount = documents.length;
   const existingCategories = useMemo(() => categories.map((c) => c.category), [categories]);
 
-  async function handlePickFolder() {
-    const handle = await pickRootDirectory();
-    setRoot(handle);
-    setRootStatus('ready');
-    setSelectedCategory(null);
+  const visibleDocuments = useMemo(() => {
+    return documents
+      .filter((d) => !selectedCategory || d.category === selectedCategory)
+      .filter((d) => !search || d.name.toLowerCase().includes(search.toLowerCase()));
+  }, [documents, selectedCategory, search]);
+
+  function namesInCategory(category: string, excludeId?: string): string[] {
+    return documents
+      .filter((d) => d.category === category && d.id !== excludeId)
+      .map((d) => d.name);
   }
 
-  async function handleReconnect() {
-    if (!pendingHandle) return;
-    const granted = await ensurePermission(pendingHandle);
-    if (!granted) throw new Error('Permissão negada. Tente novamente.');
-    setRoot(pendingHandle);
-    setRootStatus('ready');
-  }
-
-  async function handleDownload(doc: DocumentItem) {
-    if (!root) return;
-    const file = await readFile(root, doc.category, doc.name);
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  if (rootStatus === 'loading') return null;
-  if (rootStatus === 'unsupported') return <FolderSetup mode="unsupported" onPick={async () => {}} />;
-  if (rootStatus === 'pick') return <FolderSetup mode="pick" onPick={handlePickFolder} />;
-  if (rootStatus === 'reconnect')
-    return <FolderSetup mode="reconnect" folderName={pendingHandle?.name} onPick={handleReconnect} />;
-  if (!root) return null;
+  if (authStatus === 'loading') return null;
+  if (authStatus === 'signed-out') return <SignIn onSignIn={signInWithGoogle} />;
 
   return (
     <div className="app-shell">
@@ -142,8 +102,8 @@ export default function App() {
           totalCount={totalCount}
         />
         <div className="sidebar-footer">
-          <button className="btn btn-secondary btn-block" onClick={handlePickFolder}>
-            Trocar pasta
+          <button className="btn btn-secondary btn-block" onClick={() => signOutUser()}>
+            <IconLogout size={16} /> Sair ({user?.displayName ?? user?.email})
           </button>
         </div>
       </aside>
@@ -181,23 +141,23 @@ export default function App() {
 
         <main className="content">
           {error && <p className="error-banner">{error}</p>}
-          {loading ? (
+          {docsLoading ? (
             <p className="loading-text">Carregando…</p>
-          ) : documents.length === 0 ? (
+          ) : visibleDocuments.length === 0 ? (
             <div className="empty-state">
               <strong>Nenhum arquivo por aqui ainda</strong>
               <p>Clique em "Novo arquivo" para começar a organizar seus documentos.</p>
             </div>
           ) : (
             <div className="doc-list">
-              {documents.map((doc) => (
+              {visibleDocuments.map((doc) => (
                 <DocumentRow
-                  key={`${doc.category}/${doc.name}`}
+                  key={doc.id}
                   doc={doc}
                   onOpen={setViewerDoc}
                   onEdit={setEditDoc}
                   onDelete={setDeleteDoc}
-                  onDownload={handleDownload}
+                  onDownload={(d) => downloadDocument(d).catch((err) => setError(err.message))}
                 />
               ))}
             </div>
@@ -205,43 +165,43 @@ export default function App() {
         </main>
       </div>
 
-      {uploadOpen && (
+      {uploadOpen && user && (
         <UploadModal
           existingCategories={existingCategories}
           onClose={() => setUploadOpen(false)}
-          onUpload={async (file, category) => {
-            await uploadFile(root, file, category);
-            await refresh(root);
-          }}
+          onUpload={(file, category) =>
+            uploadDocument(user.uid, file, category, namesInCategory(category))
+          }
         />
       )}
 
-      {editDoc && (
+      {editDoc && user && (
         <EditModal
           doc={editDoc}
           existingCategories={existingCategories}
           onClose={() => setEditDoc(null)}
-          onSave={async (changes) => {
-            await renameOrMoveFile(root, { category: editDoc.category, name: editDoc.name }, changes);
-            await refresh(root);
-          }}
+          onSave={(changes) =>
+            updateDocument(
+              user.uid,
+              editDoc,
+              changes,
+              namesInCategory(changes.category, editDoc.id)
+            )
+          }
         />
       )}
 
-      {deleteDoc && (
+      {deleteDoc && user && (
         <ConfirmDialog
           title="Excluir arquivo"
           message={`Tem certeza que deseja excluir "${deleteDoc.name}"? Essa ação não pode ser desfeita.`}
           confirmLabel="Excluir"
           onClose={() => setDeleteDoc(null)}
-          onConfirm={async () => {
-            await deleteFile(root, deleteDoc.category, deleteDoc.name);
-            await refresh(root);
-          }}
+          onConfirm={() => deleteDocument(user.uid, deleteDoc)}
         />
       )}
 
-      {viewerDoc && <ViewerModal root={root} doc={viewerDoc} onClose={() => setViewerDoc(null)} />}
+      {viewerDoc && <ViewerModal doc={viewerDoc} onClose={() => setViewerDoc(null)} />}
     </div>
   );
 }

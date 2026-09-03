@@ -22,7 +22,7 @@ export function DocumentRow({ doc, onOpen, onEdit, onDelete, onDownload }: Props
         <span className="doc-info">
           <span className="doc-name">{doc.name}</span>
           <span className="doc-meta">
-            {doc.category} · {formatSize(doc.size)} · {formatDate(doc.lastModified)}
+            {doc.category} · {formatSize(doc.size)} · {formatDate(doc.uploadedAt)}
           </span>
         </span>
       </button>

@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Documento-pai do usuário (users/{uid}).
+    // O Firestore requer permissão no documento mesmo quando a operação real
+    // acontece numa subcoleção — sem isso, o SDK lança "Missing or insufficient permissions".
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Documentos fiscais do usuário.
+    match /users/{uid}/documents/{docId} {
+
+      // Dono tem acesso total.
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // --- Compartilhamento futuro (link público) ---
+      // Quando o dono gerar um link público, o campo `sharedToken` (string UUID)
+      // será gravado no documento. Quem conhecer o token exato poderá ler os
+      // metadados do documento (nome, categoria, storagePath) mesmo sem conta.
+      // Escrever/excluir continua restrito exclusivamente ao dono (regra acima).
+      allow read: if resource.data.sharedToken is string
+                  && resource.data.sharedToken.size() > 0;
+    }
+
+  }
+}

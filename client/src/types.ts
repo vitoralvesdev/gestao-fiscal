@@ -1,8 +1,11 @@
 export interface DocumentItem {
+  id: string;
   name: string;
   category: string;
   size: number;
-  lastModified: number;
+  mimeType: string;
+  storagePath: string;
+  uploadedAt: number;
 }
 
 export interface CategoryCount {

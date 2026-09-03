@@ -14,11 +14,13 @@ Clicar num item abre o arquivo para visualização.
 - [Como funciona por baixo dos panos](#como-funciona-por-baixo-dos-panos)
 - [Stack técnica](#stack-técnica)
 - [Requisitos](#requisitos)
+- [Configuração das variáveis de ambiente](#configuração-das-variáveis-de-ambiente)
 - [Como rodar (desenvolvimento)](#como-rodar-desenvolvimento)
 - [Como buildar (produção)](#como-buildar-produção)
 - [Lint e checagem de tipos](#lint-e-checagem-de-tipos)
 - [Estrutura do projeto](#estrutura-do-projeto)
 - [Detalhes de implementação importantes](#detalhes-de-implementação-importantes)
+- [Firebase](#firebase)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Ideias futuras](#ideias-futuras)
 
@@ -74,10 +76,12 @@ com a File System Access API. O resto do app (componentes React) só chama essas
 | Ícones | SVG inline escritos à mão (`client/src/components/icons.tsx`) | sem lib de ícones (ex: lucide, heroicons) |
 | Persistência de arquivos | **File System Access API** do navegador | sem backend, sem banco de dados |
 | Persistência da referência da pasta | `IndexedDB` (nativo do navegador) | guarda só o *handle*, não o conteúdo dos arquivos |
+| Backend/nuvem | [Firebase](https://firebase.google.com/) (`firebase` SDK) | projeto `gestao-fiscal-38b30`. SDK instalado e inicializado em `client/src/lib/firebase.ts`, ainda **não conectado** ao CRUD de documentos (ver [Firebase](#firebase)) |
 | Lint | [oxlint](https://oxc.rs/) | `npm run lint` |
 
-Não há backend, servidor Node, API REST ou banco de dados (SQL ou NoSQL) neste projeto — só o
-front-end React rodando no navegador.
+Hoje não há um servidor próprio (Node/API REST) — a persistência dos arquivos ainda é local, via
+File System Access API. O Firebase foi adicionado como o futuro serviço de backend/nuvem (ver
+seção [Firebase](#firebase) abaixo) para permitir sincronização entre dispositivos.
 
 ## Requisitos
 
@@ -85,6 +89,24 @@ front-end React rodando no navegador.
 - Um navegador **baseado em Chromium**: Chrome, Edge ou Brave. A File System Access API
   (`window.showDirectoryPicker`) **não é suportada no Firefox nem no Safari** — nesses navegadores
   o app mostra uma tela avisando que não é possível continuar.
+- Um projeto Firebase (veja [Configuração das variáveis de ambiente](#configuração-das-variáveis-de-ambiente)).
+
+## Configuração das variáveis de ambiente
+
+O app usa variáveis de ambiente para não expor as credenciais do Firebase no repositório.
+
+1. Copie o arquivo de exemplo:
+
+   ```bash
+   cp client/.env.example client/.env
+   ```
+
+2. Abra `client/.env` e preencha cada variável com os valores do seu projeto Firebase.
+   Você encontra esses valores em:
+   [Firebase Console](https://console.firebase.google.com) → seu projeto → **Configurações do projeto** → **Seus apps** → app Web → **SDK setup and configuration**.
+
+3. O arquivo `.env` está no `.gitignore` e **nunca deve ser commitado**. O `.env.example` (sem
+   valores reais) é o que deve ficar no repositório como referência para outros desenvolvedores.
 
 ## Como rodar (desenvolvimento)
 
@@ -148,8 +170,10 @@ gestao-fiscal/
         │   │                        # usado só para persistir o handle da pasta raiz
         │   ├── category.ts          # heurística de sugestão de categoria a partir do nome do
         │   │                        # arquivo (extrai texto entre parênteses, remove "Mês Ano")
-        │   └── format.ts            # helpers de formatação: tamanho de arquivo, data, extensão,
-        │                            # "tipo" do arquivo (pdf/word/excel/text/other) por extensão
+        │   ├── format.ts            # helpers de formatação: tamanho de arquivo, data, extensão,
+        │   │                        # "tipo" do arquivo (pdf/word/excel/text/other) por extensão
+        │   └── firebase.ts          # inicializa o app Firebase (`gestao-fiscal-38b30`) e o
+        │                            # Analytics; ainda não conectado ao CRUD de documentos
         └── components/
             ├── icons.tsx            # ícones SVG inline (sem lib externa)
             ├── Modal.tsx            # shell genérico de modal (usado por todos os outros modais)
@@ -184,6 +208,26 @@ gestao-fiscal/
   transformado num [Object URL](https://developer.mozilla.org/en-US/docs/Web/API/URL/createObjectURL_static)
   temporário (`URL.createObjectURL`), usado no `<iframe>` (PDF), lido como texto (`.txt`), ou
   oferecido como link de abrir/baixar (Word/Excel). O URL é revogado quando o modal fecha.
+
+## Firebase
+
+O projeto tem um app Firebase próprio, `gestao-fiscal-38b30`, pensado para virar o "servidor" da
+sincronização em nuvem mencionada nas ideias futuras. Estado atual:
+
+- **Instalado e inicializado**: pacote `firebase` (`client/package.json`) e
+  `client/src/lib/firebase.ts`, que chama `initializeApp` com a config do projeto e exporta `app`.
+  Esse módulo é importado (por efeito colateral) em `client/src/main.tsx`, então o Firebase já
+  inicializa junto com o app.
+- **Analytics**: `analyticsReady` (no mesmo arquivo) resolve para a instância do Google Analytics
+  quando o navegador suporta, ou `null` caso contrário (ex: bloqueadores de rastreamento) — por
+  isso é uma Promise, não um valor direto.
+- **Ainda não conectado a nada**: nenhum produto do Firebase (Firestore, Storage, Auth) está em
+  uso pelo CRUD de documentos ainda — a listagem/upload/edição/exclusão continua 100% via File
+  System Access API (`client/src/lib/fsAccess.ts`). Migrar esse fluxo para Firestore (metadados) +
+  Storage (arquivos), incluindo Auth e Security Rules, é um passo separado, ainda não feito.
+- **A `apiKey` no código não é secreta**: é assim que toda config web do Firebase funciona — o
+  controle de acesso real fica nas Security Rules do Firestore/Storage, então não há problema em
+  isso estar num repositório público.
 
 ## Limitações conhecidas
 

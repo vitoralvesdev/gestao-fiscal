@@ -22,6 +22,8 @@ export function formatDate(epochMs: number): string {
 
 export type FileKind = 'pdf' | 'excel' | 'word' | 'text' | 'other';
 
+export const ALLOWED_EXTENSIONS = ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'xlsm'];
+
 export function fileExtension(fileName: string): string {
   const match = fileName.match(/\.([^.]+)$/);
   return match ? match[1].toLowerCase() : '';

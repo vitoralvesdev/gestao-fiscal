@@ -1,3 +1,8 @@
+# Environment variables — nunca commitar, use .env.example como referência
+.env
+.env.local
+.env.*.local
+
 # Logs
 logs
 *.log
