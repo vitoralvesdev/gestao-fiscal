@@ -1001,3 +1001,334 @@ input {
   margin: 0;
   font-size: 0.88rem;
 }
+
+/* ── Sidebar com hierarquia ─────────────────────────────────────── */
+
+.nav-item-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+
+.nav-item-row.active > .nav-item-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.nav-item-row.active > .nav-item-btn .nav-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--accent-contrast);
+}
+
+.nav-item-row:hover:not(.active) > .nav-item-btn {
+  background: var(--bg);
+}
+
+.nav-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px 8px 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nav-item-btn .label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-expand-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+}
+
+.nav-expand-btn:hover {
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.nav-expand-icon {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.nav-expand-icon.open {
+  transform: rotate(90deg);
+}
+
+/* ── UploadModal — fila de arquivos ─────────────────────────────── */
+
+.upload-btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.upload-skipped {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.upload-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.upload-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.upload-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.upload-queue-item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.upload-queue-item-path {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-queue-item-cat {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.upload-queue-item-cat:focus {
+  border-color: var(--accent);
+}
+
+@media (max-width: 560px) {
+  .upload-queue-item {
+    flex-wrap: wrap;
+  }
+  .upload-queue-item-cat {
+    width: 100%;
+  }
+}
+
+/* ── Upload progress ────────────────────────────────────────────── */
+
+.upload-progress-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.upload-progress-bar-track {
+  height: 8px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.upload-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+.upload-progress-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.upload-progress-current {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Upload done ────────────────────────────────────────────────── */
+
+.upload-done {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upload-done p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.upload-errors {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+.upload-errors-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.upload-errors ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Search row com toggle Nome/Categoria ───────────────────────── */
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-row .search-box {
+  flex: 1;
+}
+
+.search-field-toggle {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.search-field-btn {
+  padding: 9px 13px;
+  border: none;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.search-field-btn + .search-field-btn {
+  border-left: 1px solid var(--border);
+}
+
+.search-field-btn.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.search-field-btn:not(.active):hover {
+  background: var(--surface);
+}
+
+/* ── Pagination ─────────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 0 4px;
+}
+
+.pagination-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.pagination-info {
+  min-width: 80px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pagination-total {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-faint);
+}

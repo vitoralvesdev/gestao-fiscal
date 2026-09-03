@@ -13,6 +13,12 @@ export interface DocumentItem {
    * Quando false (ou ausente), só podem visualizar inline.
    */
   sharedAllowDownload?: boolean;
+  /**
+   * URL de download pré-gerado pelo dono no momento do compartilhamento.
+   * Armazenado no Firestore para que visitantes públicos possam acessar
+   * o arquivo sem precisar de autenticação no Storage.
+   */
+  sharedFileUrl?: string;
 }
 
 export interface CategoryCount {

@@ -7,14 +7,25 @@ interface Props {
   totalCount: number;
 }
 
+/** Retorna a parte mais descritiva de uma categoria para exibição em chip. */
+function chipLabel(category: string, count: number): string {
+  const lastSegment = category.split('/').pop() ?? category;
+  return `${lastSegment} (${count})`;
+}
+
 export function CategoryChips({ categories, selected, onSelect, totalCount }: Props) {
   return (
     <div className="chips">
-      <Chip label={`Todos (${totalCount})`} active={selected === null} onClick={() => onSelect(null)} />
+      <Chip
+        label={`Todos (${totalCount})`}
+        active={selected === null}
+        onClick={() => onSelect(null)}
+      />
       {categories.map((c) => (
         <Chip
           key={c.category}
-          label={`${c.category} (${c.count})`}
+          label={chipLabel(c.category, c.count)}
+          title={c.category}
           active={selected === c.category}
           onClick={() => onSelect(c.category)}
         />
@@ -23,9 +34,23 @@ export function CategoryChips({ categories, selected, onSelect, totalCount }: Pr
   );
 }
 
-function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function Chip({
+  label,
+  title,
+  active,
+  onClick,
+}: {
+  label: string;
+  title?: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} className={`chip${active ? ' active' : ''}`}>
+    <button
+      onClick={onClick}
+      className={`chip${active ? ' active' : ''}`}
+      title={title}
+    >
       {label}
     </button>
   );

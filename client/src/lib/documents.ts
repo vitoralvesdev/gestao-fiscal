@@ -37,6 +37,7 @@ function toDocumentItem(id: string, data: DocumentData): DocumentItem {
     uploadedAt: uploadedAt ? uploadedAt.toMillis() : Date.now(),
     sharedToken: data.sharedToken ?? undefined,
     sharedAllowDownload: data.sharedAllowDownload ?? undefined,
+    sharedFileUrl: data.sharedFileUrl ?? undefined,
   };
 }
 
@@ -137,19 +138,24 @@ function generateToken(): string {
 
 /**
  * Gera (ou reutiliza) um sharedToken no documento do Firestore.
- * Retorna o token para que o chamador possa montar o link.
+ * Também obtém (ou reutiliza) o URL de download do Storage e salva no Firestore,
+ * para que visitantes públicos possam acessar o arquivo sem autenticação.
+ * Retorna token e fileUrl para que o chamador possa montar o link e atualizar o estado local.
  */
 export async function shareDocument(
   uid: string,
   target: DocumentItem,
   allowDownload: boolean
-): Promise<string> {
+): Promise<{ token: string; fileUrl: string }> {
   const token = target.sharedToken ?? generateToken();
+  // Só gera novo URL se ainda não existir (evita chamada extra ao Storage)
+  const fileUrl = target.sharedFileUrl ?? await getDownloadURL(ref(storage, target.storagePath));
   await updateDoc(userDocRef(uid, target.id), {
     sharedToken: token,
     sharedAllowDownload: allowDownload,
+    sharedFileUrl: fileUrl,
   });
-  return token;
+  return { token, fileUrl };
 }
 
 /** Altera só a permissão de download sem revogar/trocar o link. */
@@ -161,10 +167,14 @@ export async function updateSharePermission(
   await updateDoc(userDocRef(uid, target.id), { sharedAllowDownload: allowDownload });
 }
 
-/** Remove o sharedToken, tornando o link anterior inválido imediatamente. */
+/** Remove o sharedToken e o URL salvo, tornando o link anterior inválido imediatamente. */
 export async function unshareDocument(uid: string, target: DocumentItem): Promise<void> {
   const { deleteField } = await import('firebase/firestore');
-  await updateDoc(userDocRef(uid, target.id), { sharedToken: deleteField() });
+  await updateDoc(userDocRef(uid, target.id), {
+    sharedToken: deleteField(),
+    sharedAllowDownload: deleteField(),
+    sharedFileUrl: deleteField(),
+  });
 }
 
 /**

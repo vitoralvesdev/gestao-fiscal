@@ -32,8 +32,8 @@ export function ShareModal({ doc, uid, onClose, onUpdate }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const token = await shareDocument(uid, doc, allowDownload);
-      onUpdate({ ...doc, sharedToken: token, sharedAllowDownload: allowDownload });
+      const { token, fileUrl } = await shareDocument(uid, doc, allowDownload);
+      onUpdate({ ...doc, sharedToken: token, sharedAllowDownload: allowDownload, sharedFileUrl: fileUrl });
     } catch {
       setError('Não foi possível gerar o link. Tente novamente.');
     } finally {
@@ -62,7 +62,7 @@ export function ShareModal({ doc, uid, onClose, onUpdate }: Props) {
     setError(null);
     try {
       await unshareDocument(uid, doc);
-      onUpdate({ ...doc, sharedToken: undefined, sharedAllowDownload: undefined });
+      onUpdate({ ...doc, sharedToken: undefined, sharedAllowDownload: undefined, sharedFileUrl: undefined });
       setCopied(false);
       setAllowDownload(false);
     } catch {
@@ -151,6 +151,14 @@ export function ShareModal({ doc, uid, onClose, onUpdate }: Props) {
               {copied ? 'Copiado!' : 'Copiar'}
             </button>
           </div>
+
+          {/* Aviso se o link foi gerado antes de ter sharedFileUrl (versão antiga) */}
+          {!doc.sharedFileUrl && (
+            <p className="share-hint" style={{ color: 'var(--danger)' }}>
+              Este link foi gerado numa versão anterior e precisa ser regenerado. Revogue e gere
+              um novo link para que ele funcione corretamente.
+            </p>
+          )}
 
           <p className="share-hint">
             Qualquer pessoa com este link pode acessar o arquivo

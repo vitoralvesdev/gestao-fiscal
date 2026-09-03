@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { IconDownload, IconExternalLink, IconFolder, FileKindIcon } from './icons';
-import { getDocumentByToken, getDocumentUrl, downloadDocument } from '../lib/documents';
+import { getDocumentByToken } from '../lib/documents';
 import { fileKind, formatDate, formatSize } from '../lib/format';
 import type { DocumentItem } from '../types';
 
@@ -13,11 +13,10 @@ type Status = 'loading' | 'found' | 'not-found' | 'error';
 export function SharedViewer({ token }: Props) {
   const [status, setStatus] = useState<Status>('loading');
   const [doc, setDoc] = useState<DocumentItem | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [textError, setTextError] = useState<string | null>(null);
 
-  // 1. Busca metadado pelo token
+  // Busca metadado pelo token — o sharedFileUrl já vem no documento do Firestore
   useEffect(() => {
     let cancelled = false;
     getDocumentByToken(token)
@@ -27,27 +26,27 @@ export function SharedViewer({ token }: Props) {
         setDoc(found);
         setStatus('found');
       })
-      .catch(() => { if (!cancelled) setStatus('error'); });
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('[SharedViewer] erro ao buscar token:', err);
+          setStatus('error');
+        }
+      });
     return () => { cancelled = true; };
   }, [token]);
 
-  // 2. Busca URL assim que o metadado chegar
+  // Para arquivos de texto, busca o conteúdo via sharedFileUrl
   useEffect(() => {
-    if (!doc) return;
+    if (!doc || fileKind(doc.name) !== 'text' || !doc.sharedFileUrl) return;
     let cancelled = false;
-    const kind = fileKind(doc.name);
-    getDocumentUrl(doc)
-      .then(async (downloadUrl) => {
-        if (cancelled) return;
-        setUrl(downloadUrl);
-        if (kind === 'text') {
-          const res = await fetch(downloadUrl);
-          if (!cancelled) setText(await res.text());
-        }
-      })
-      .catch(() => { if (!cancelled) setFileError('Não foi possível carregar o arquivo.'); });
+    fetch(doc.sharedFileUrl)
+      .then((r) => r.text())
+      .then((t) => { if (!cancelled) setText(t); })
+      .catch(() => { if (!cancelled) setTextError('Não foi possível carregar o conteúdo.'); });
     return () => { cancelled = true; };
   }, [doc]);
+
+  // ── Estados de carregamento / erro / not-found ─────────────────
 
   if (status === 'loading') {
     return (
@@ -83,8 +82,30 @@ export function SharedViewer({ token }: Props) {
     );
   }
 
+  // ── Arquivo encontrado ─────────────────────────────────────────
+
   const kind = fileKind(doc.name);
   const canDownload = doc.sharedAllowDownload === true;
+  // URL pré-salvo no Firestore pelo dono no momento do compartilhamento
+  const fileUrl = doc.sharedFileUrl ?? null;
+
+  if (!fileUrl) {
+    // Documento compartilhado antes da implementação do sharedFileUrl — orientação ao visitante
+    return (
+      <div className="shared-shell">
+        <SharedHeader />
+        <div className="shared-body">
+          <div className="shared-not-found">
+            <strong>Link temporariamente indisponível</strong>
+            <p>
+              O dono do arquivo precisa regenerar o link de compartilhamento para que ele
+              funcione corretamente.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="shared-shell">
@@ -104,50 +125,47 @@ export function SharedViewer({ token }: Props) {
             </div>
           </div>
 
-          {/* Ações — condicionais pela permissão de download */}
-          {url && !fileError && (
-            <div className="shared-actions">
-              {/* "Nova aba" só faz sentido para formatos com visualizador nativo (PDF) */}
-              {kind === 'pdf' && (
-                <a href={url} target="_blank" rel="noreferrer" className="btn btn-secondary">
-                  <IconExternalLink size={14} /> Nova aba
-                </a>
-              )}
-
-              {canDownload ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => doc && downloadDocument(doc)}
-                >
-                  <IconDownload size={14} /> Baixar
-                </button>
-              ) : (
-                <span className="shared-no-download">
-                  Download não permitido pelo compartilhador
-                </span>
-              )}
-            </div>
-          )}
-
-          {fileError && <p className="error-banner">{fileError}</p>}
+          {/* Ações */}
+          <div className="shared-actions">
+            {kind === 'pdf' && (
+              <a href={fileUrl} target="_blank" rel="noreferrer" className="btn btn-secondary">
+                <IconExternalLink size={14} /> Nova aba
+              </a>
+            )}
+            {canDownload ? (
+              <a
+                href={fileUrl}
+                download={doc.name}
+                className="btn btn-primary"
+              >
+                <IconDownload size={14} /> Baixar
+              </a>
+            ) : (
+              <span className="shared-no-download">
+                Download não permitido pelo compartilhador
+              </span>
+            )}
+          </div>
 
           {/* Visualizador */}
-          {!fileError && url && kind === 'pdf' && (
-            <iframe title={doc.name} src={url} className="viewer-frame shared-frame" />
+          {kind === 'pdf' && (
+            <iframe title={doc.name} src={fileUrl} className="viewer-frame shared-frame" />
           )}
 
-          {!fileError && kind === 'text' && (
-            <pre className="viewer-text">{text ?? 'Carregando…'}</pre>
+          {kind === 'text' && (
+            <pre className="viewer-text">
+              {textError ?? text ?? 'Carregando…'}
+            </pre>
           )}
 
-          {!fileError && url && (kind === 'word' || kind === 'excel' || kind === 'other') && (
+          {(kind === 'word' || kind === 'excel' || kind === 'other') && (
             <div className="viewer-unsupported">
               <FileKindIcon kind={kind} size={40} />
               <p>Pré-visualização não disponível para este tipo de arquivo no navegador.</p>
               {canDownload ? (
-                <button className="btn btn-primary" onClick={() => doc && downloadDocument(doc)}>
+                <a href={fileUrl} download={doc.name} className="btn btn-primary">
                   <IconDownload size={14} /> Baixar arquivo
-                </button>
+                </a>
               ) : (
                 <p className="shared-no-download">
                   Download não permitido pelo compartilhador.
